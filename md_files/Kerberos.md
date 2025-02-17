@@ -1,8 +1,8 @@
 
 #### Kerberos+Nginx 实现 Ollama 的 AD 用户认证
-- 假定访问的主机名为： ollama.mydomain.local (mydomain.local 为AD域的域名)
-- 需要注册 SPN，`klist command`  命令应该能看到 HTTP/ollama.mydom.local@MYDOM.LOCAL 这条记录
-- 编译 Nginx 的 kerberos 支持， 编译时应该制定：--add-module=spnego-http-auth-nginx-module
+- 假定访问的主机名为： ollama.mydom.local (mydom.local 为AD域的域名)
+- 需要注册 SPN，`klist`  命令应该能看到 HTTP/ollama.mydom.local@MYDOM.LOCAL 这条记录
+- 编译 Nginx 的 kerberos 支持， 编译时应该指定：--add-module=spnego-http-auth-nginx-module
 - Nginx 配置：
 ```nginx
 location /{
