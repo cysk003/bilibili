@@ -33,9 +33,12 @@ BASE_DIR="/nfsroot/iso/cloud"
 VM_DIR="/nfsroot/VMs/cloud"
 # Your own key file to load into cloud image
 PUB_KEY="$HOME/.ssh/id_rsa.pub"
+### ####################
+[ ! -d "$BASE_DIR" ] && sudo mkdir -p $BASE_DIR && sudo chown $USER $BASE_DIR
+[ ! -d "$VM_DIR" ] && sudo mkdir -p $VM_DIR && sudo chown $USER $VM_DIR
 # Temporary cloud-init.yaml file
 CL_INIT="/tmp/$(basename $0 .sh).yaml"
-[ ! -x /usr/bin/axel ] && echo "Error: Please install axel package" && exit
+if ! command -v axel >/dev/null ; then echo "Error: Please install axel package"; exit; fi
 
 supported_os() {
 	# ============================================================================
@@ -45,21 +48,19 @@ supported_os() {
 	SJTU="https://mirrors.sjtug.sjtu.edu.cn"
 	# cloud urls
 	# test passed
-	local fedora=$NJU"/fedora/releases/38/Cloud/x86_64/images/Fedora-Cloud-Base-38-1.6.x86_64.raw.xz"
-	local almalinux=$NJU"/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
-	local jammy=$NJU"/ubuntu-cloud-images/jammy/current/jammy-server-cloudimg-amd64.img"
-	local rocky=$SJTU"/rocky/9.1/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2"
+	local fedora=$NJU"/fedora/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
+	local almalinux=$NJU"/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
+	local ubuntu=$NJU"/ubuntu-cloud-images/noble/current/noble-server-cloudimg-amd64.img"
+	local rocky=$NJU"/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base.latest.x86_64.qcow2"
 	local arch=$NJU"/archlinux/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
 	# username is cloud-user, not centos
-	local centos=$NJU"/centos-cloud/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20230501.0.x86_64.qcow2"
-	# need to find a proper CN mirror for debian
-	# local debian="https://cdimage.debian.org/cdimage/cloud/bookworm/daily/latest/debian-12-generic-arm64-daily.qcow2"
-	local debian="https://cdimage.debian.org/cdimage/cloud/bookworm/daily/latest/debian-12-generic-amd64-daily.qcow2"
+	# local centos=$NJU"/centos-cloud/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20230501.0.x86_64.qcow2"
+	local debian="$NJU/debian-cdimage/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
 	# Failed test:
-	local openeuler=$NJU"/openeuler/openEuler-23.03/virtual_machine_img/x86_64/openEuler-23.03-x86_64.qcow2.xz"
+	local openeuler=$NJU"/openeuler/openEuler-25.03/virtual_machine_img/x86_64/openEuler-25.03-x86_64.qcow2.xz"
 	#
 	[ -n "${!IMG}" ] && URL=${!IMG} && return
-	echo "Error: Supported-OS: arch,almalinux,centos,debian,fedora,jammy,openeuler,rocky"
+	echo "Error: Supported-OS: arch,almalinux,debian,fedora,ubuntu,openeuler,rocky"
 	echo "Syntax: $0 VM-NAME Supported-OS"
 	exit 1
 }
@@ -75,6 +76,9 @@ supported_os() {
 net_install() {
 	# Debian URL: e.g IMG=https://mirror.nju.edu.cn/debian/dists/stable/main/installer-amd64/
 	# Fedora URL: https://mirror.nju.edu.cn/fedora/releases/38/Server/x86_64/os/
+	# Todo: 
+	#   - add network default check, or ask user to provide network name
+	#   - add cloud-init script to customize
 	sudo virt-install \
 		--connect qemu:///system \
 		--graphics vnc \
@@ -122,11 +126,10 @@ package_update: false
 package_upgrade: false
 package_reboot_if_required: false
 packages:
-  - network-manager
   - avahi-daemon
   - qemu-guest-agent
-  - neofetch
-  - neovim
+  - network-manager
+  - systemd-networkd
 byobu_by_default: enable-user
 write_files:
   - content: |
@@ -177,8 +180,11 @@ cloud() {
 	else
 		supported_os $IMG
 		echo "Info: Downloading cloud-image from ${URL} to $BASE_DIR"
-		axel ${URL} -o $BASE_DIR
-		[ $? != 0 ] && echo "Error: failed to download ${URL}" && exit 5
+		axel -n 10 ${URL} -o $BASE_DIR
+		[ $? != 0 ] && echo "Error: Failed to download ${URL}" && exit 5
+		URL_SUM="$(dirname $URL)/SHA512SUMS"
+		axel ${URL_SUM} -o $BASE_DIR
+		(cd $BASE_DIR;if ! sha512sum --ignore-missing -c SHA512SUMS; then echo "Download failed"; exit 5;fi) 
 		BASE=$BASE_DIR/$(basename $URL)
 	fi
 	# [ -z "$BASE" ] && echo "Error: No Image found for $IMG under $BASE_DIR" && exit 6
