@@ -45,46 +45,43 @@ BASE_DIR="/nfsroot/iso/cloud"
 VM_DIR="/nfsroot/VMs/cloud"
 # Your own key file to load into cloud image
 PUB_KEY="$HOME/.ssh/id_rsa.pub"
+### ####################
+[ ! -d "$BASE_DIR" ] && sudo mkdir -p $BASE_DIR && sudo chown $USER $BASE_DIR
+[ ! -d "$VM_DIR" ] && sudo mkdir -p $VM_DIR && sudo chown $USER $VM_DIR
 # Temporary cloud-init.yaml file
-CL_INIT="/tmp/$(basename "$0" .sh).yaml"
-# we use axel to download cloud image
-[ ! -x /usr/bin/axel ] && echo "Error: Please install axel package" && exit
+CL_INIT="/tmp/$(basename $0 .sh).yaml"
+if ! command -v axel >/dev/null ; then echo "Error: Please install axel package"; exit; fi
 
 supported_os() {
   # ============================================================================
-  # Supported cloud image
-  # local OS=$1
-  # NJU and SJTU mirror to download cloud images
-  NJU="https://mirrors.nju.edu.cn"
-  SJTU="https://mirrors.sjtug.sjtu.edu.cn"
-  # cloud urls
-  # test passed
-  local fedora=$NJU"/fedora/releases/38/Cloud/x86_64/images/Fedora-Cloud-Base-38-1.6.x86_64.raw.xz"
-  local almalinux=$NJU"/almalinux/9.3/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
-  # username is anuser, password: anolisos
-  local alpine="$NJU/alpine/v3.19/releases/cloud/nocloud_alpine-3.19.1-x86_64-uefi-cloudinit-r0.qcow2"
-  local anolis_rh=$NJU"/anolis/8.9/isos/GA/x86_64/AnolisOS-8.9-x86_64-RHCK.qcow2"
-  local anolis_an=$NJU"/anolis/8.9/isos/GA/x86_64/AnolisOS-8.9-x86_64-ANCK.qcow2"
-  local anolis="$NJU/anolis/23/isos/GA/x86_64/AnolisOS-23.0-x86_64.qcow2"
-  local jammy=$NJU"/ubuntu-cloud-images/jammy/current/jammy-server-cloudimg-amd64.img"
-  local noble="$NJU/ubuntu-cloud-images/noble/current/noble-server-cloudimg-amd64.img"
-  local plucky="$NJU/ubuntu-cloud-images/plucky/current/plucky-server-cloudimg-amd64.img"
-  local rocky=$SJTU"/rocky/9.1/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2"
-  local arch=$NJU"/archlinux/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
-  # username is cloud-user, not centos
-  local centos=$NJU"/centos-cloud/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20230501.0.x86_64.qcow2"
-  # need to find a proper CN mirror for debian
-  local debian="https://cdimage.debian.org/cdimage/cloud/bookworm/daily/latest/debian-12-generic-amd64-daily.qcow2"
-  # local debian="https://cdimage.debian.org/cdimage/cloud/bookworm/daily/latest/debian-12-generic-arm64-daily.qcow2"
-  # local debian="https://cdimage.debian.org/cdimage/cloud/buster/daily/latest/debian-10-generic-amd64-daily.qcow2"
-  # local debian=$SJTU"/debian-cdimage/cloud/buster/latest/debian-10-generic-amd64.qcow2"
-  # username/password: root/openEuler12#$
-  local openeuler=$NJU"/openeuler/openEuler-23.09/virtual_machine_img/x86_64/openEuler-23.09-x86_64.qcow2.xz"
-  #
-  [ -n "${!IMG}" ] && URL=${!IMG} && return
-  echo "Error: Supported-OS: arch,almalinux,centos,debian,fedora,jammy,rocky,openeuler,anolis_rh,anolis_an"
-  echo "Syntax: $0 VM-NAME Supported-OS"
-  exit 1
+	# Supported cloud image
+	# local OS=$1
+	# NJU and SJTU mirror to download cloud images
+	NJU="https://mirrors.nju.edu.cn"
+	SJTU="https://mirrors.sjtug.sjtu.edu.cn"
+	# cloud urls
+	# test passed
+	local fedora=$NJU"/fedora/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
+	local almalinux=$NJU"/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
+	local ubuntu=$NJU"/ubuntu-cloud-images/noble/current/noble-server-cloudimg-amd64.img"
+	local rocky=$NJU"/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base.latest.x86_64.qcow2"
+	local arch=$NJU"/archlinux/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
+	# username is cloud-user, not centos
+	# local centos=$NJU"/centos-cloud/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20230501.0.x86_64.qcow2"
+	local debian="$NJU/debian-cdimage/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
+	# Failed test:
+	local openeuler=$NJU"/openeuler/openEuler-25.03/virtual_machine_img/x86_64/openEuler-25.03-x86_64.qcow2.xz"
+	#
+	[ -n "${!IMG}" ] && URL=${!IMG} && return
+	echo "Error: Supported-OS: arch,almalinux,debian,fedora,ubuntu,openeuler,rocky"
+	# username is anuser, password: anolisos
+	local anolis_rh=$NJU"/anolis/8.9/isos/GA/x86_64/AnolisOS-8.9-x86_64-RHCK.qcow2"
+	local anolis_an=$NJU"/anolis/8.9/isos/GA/x86_64/AnolisOS-8.9-x86_64-ANCK.qcow2"
+	#
+	[ -n "${!IMG}" ] && URL=${!IMG} && return
+	echo "Error: Supported-OS: arch,almalinux,centos,debian,fedora,jammy,rocky,openeuler,anolis_rh,anolis_an"
+	echo "Syntax: $0 VM-NAME Supported-OS"
+	exit 1
 }
 # ============================================================================
 # Normally you don't need to change code below
@@ -145,11 +142,10 @@ package_update: false
 package_upgrade: false
 package_reboot_if_required: false
 packages:
-  - network-manager
   - avahi-daemon
   - qemu-guest-agent
-  - neofetch
-  - neovim
+  - network-manager
+  - systemd-networkd
 byobu_by_default: enable-user
 write_files:
   - content: |

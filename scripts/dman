@@ -1,0 +1,148 @@
+#!/bin/sh
+# set -e
+# Last Modified by @LeisureLinux on Bilibili
+# Modified download_man to curl two times from BASE_URL
+# Renamed old download function to download_man_old
+# Changed variable: DISTRIBUTION_CODE to DCODE
+# Known Issue:
+# 1. the first html page to grab, some will have more than one html, which will cause error.
+
+CURLOPTS="-qsSfL"
+
+###############################################################################
+# This is the Ubuntu manpage repository generator and interface.
+#
+# Copyright (C) 2008 Canonical Ltd.
+#
+# This code was originally written by Dustin Kirkland <kirkland@ubuntu.com>,
+# based on a framework by Kees Cook <kees@ubuntu.com>.
+#
+# It was later modified for Debian, for use in the debian-goodies package,
+# by Antoine Beaupré <anarcat@debian.org>, Axel Beckert <abe@deuxchevaux.org>
+# and Javier Fernández-Sanguino <jfs@debian.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# On Debian-based systems, the complete text of the GNU General Public
+# License can be found in /usr/share/common-licenses/GPL-3
+###############################################################################
+
+usage() {
+  echo "Usage: $0 [ --release suite ] man-page <man-arguments>"
+}
+
+get_locdot() {
+  # Mirror support of man's languages
+  # [ -n "$LANG" ] && LOCDOT="."$(echo $LANG | sed 's/_.*$//')
+  [ -n "$LANG" ] && LOCDOT="."$(echo $LANG | cut -d'.' -f1)
+  [ -n "$LC_MESSAGES" ] && LOCDOT="."$(echo $LC_MESSAGES | cut -d'.' -f1)
+  if echo $LOCALE | grep -E -q "^(C|en)"; then
+    LOCDOT=".en"
+  fi
+  # echo $LOCDOT
+}
+
+download_man_old() {
+  url=$1
+  file=$2
+  curl $CURLOPTS "$url" >"$file" 2>/dev/null
+  if ! [ -s "$file" ] ||
+    grep -Eq "<title>403.*Forbidden</title>" "$file" ||
+    grep -Eq "<h1>Manpage not found</h1>" "$file"; then
+    return 1
+  fi
+  return 0
+}
+
+exit_with_error() {
+  # [ ! -d "$mandir" ] || rm -r "$mandir"
+  test -f "/tmp/manpage.$PAGE.html" && rm "/tmp/manpage.$PAGE.html"
+  exit 1
+}
+
+get_section() {
+  # This rely on local installed and indexed man page to get section.
+  apropos -e $PAGE | grep -oP '^'${PAGE}' .*\K\(([^)]*)\)' | sed 's/[()]//g'
+}
+
+# Main Prog.
+#
+# LOCDOT=".en"
+BASE_URL="https://manpages.debian.org"
+# Old: https://manpages.debian.org/bookworm/manpages/ldd.1.en.gz
+# New: https://manpages.debian.org/bookworm/curl/curl.1.en.gz
+#
+if [ -r /etc/lsb-release ]; then
+  . /etc/lsb-release
+else
+  DCODE=$(lsb_release -c -s 2>/dev/null)
+fi
+# default to stable if LSB fails or is absent
+DCODE=${DCODE:-stable}
+
+# Process command line options
+while true; do
+  case "$1" in
+  --release)
+    DCODE="$2"
+    shift 2
+    ;;
+  --help)
+    usage
+    exit 0
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+PAGE=$(echo "$@" | awk '{print $NF}')
+# MAN_ARGS=$(echo "$@" | sed "s/$PAGE$//")
+
+# Sanity checks
+if [ ! -x "$(which curl)" ]; then
+  echo "ERROR: $0 - cannot find curl - exiting"
+  exit 1
+fi
+if [ -z "$PAGE" ]; then
+  echo "ERROR: No manpage provided - exiting"
+  usage
+  exit 1
+fi
+
+# mandir=$(mktemp --tmpdir="${TMPDIR:-/tmp}" -d dman.XXXXXX)
+trap exit_with_error EXIT HUP INT QUIT TERM
+get_locdot
+DISTRO=$(distro-info --stable)
+#
+echo "Info: Step 1: Grab html page from $BASE_URL/$PAGE ..."
+html_url=${BASE_URL}$(curl $CURLOPTS $BASE_URL/${PAGE} | grep \
+  -oP "href=\"\K.*${PAGE}/.*${PAGE}\..*.en.html" | grep $DISTRO | sort | uniq | tail -1)
+# echo $html_url
+[ "$html_url" = "${BASE_URL}" ] && echo "Error: Missing $BASE_URL/${PAGE}" && exit 1
+#
+echo "Info: Step 2: Grab the gz raw page URL from $html_url ..."
+curl $CURLOPTS ${html_url} -o /tmp/manpage.$PAGE.html
+gz_url=${BASE_URL}$(cat /tmp/manpage.$PAGE.html | grep -oP "href=\"\K.*${PAGE}/.*${PAGE}.*.gz")
+# check if html page for my locale exist
+my_url=$(cat /tmp/manpage.$PAGE.html | grep -oP "href=\"\K.*${PAGE}.*${LOCDOT}.html\" title=" | sed -e 's/" title=//')
+if [ -n "$my_url" ]; then
+  echo "Found $LOCDOT man page at ${BASE_URL}$my_url ..."
+  gz_url=${BASE_URL}$(curl $CURLOPTS ${BASE_URL}${my_url} | grep -oP "href=\"\K.*${PAGE}.*\.gz")
+fi
+[ -z "$gz_url" ] && echo "Error: Missing $BASE_URL/${html_url}" && exit 2
+#
+echo "Info: Step 3: Grab gz file from $gz_url and rendering to STDOUT ..."
+curl $CURLOPTS "${gz_url}" | man -l -
+# [ ! -s "${gz_file}" ] && echo "Error: Download $BASE_URL/${gz_url} failed." && exit 3
