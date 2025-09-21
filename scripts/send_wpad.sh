@@ -14,8 +14,11 @@
 # 最后修改日期：2023年 11月 19日 星期日 16:06:57 CST
 #
 # SwitchyOmega 只能配置一个代理，默认选择 HTTP 代理协议，为了提高可靠性，修改 wpad 脚本，增加 SOCKS5 配置
-OLD="wpad:8888"
-NEW="wpad:8888; SOCKS5 wpad:2023"
+# WHOST="wpad-01"
+WHOST="wpad.lan"
+#
+OLD="$WHOST:8888"
+NEW="$WHOST:8888; SOCKS5 $WHOST:2023"
 # 以上两个变量需要根据SwitchyOmega 的配置以及自己是否有 SOCKS5 代理来决定
 # 如果不修改 OLD & NEW 变量，下面的 sed 语句应该不会生效，因此不会影响结果
 PFILE="auto_switch" # Profile name
@@ -40,26 +43,30 @@ sed -i -e "s/$OLD/$NEW/g" "$WPAD"
 # 	/usr/local/bin/genpac --format=pac --pac-proxy="PROXY wpad:8888; SOCKS5 wpad:2023" --gfwlist-proxy "SOCKS5 wpad:2023" | tee "$WPAD" >/dev/null
 # fi
 test_pac() {
-	if [ "$1" = "remote" ]; then
-		WPAD=/tmp/wpad.dat
-		curl -sSf http://wpad/wpad.dat -o "$WPAD"
-	fi
-	for u in https://bbc.co.uk https://zh.annas-archive.org/ http://www.sina.cn; do
-		(
-			echo "Verify $u: "
-			pactester -p "$WPAD" -u $u
-		) | xargs
-	done
+  if [ "$1" = "remote" ]; then
+    WPAD=/tmp/wpad.dat
+    if ! curl -q -sSf http://$WHOST/wpad.dat -o "$WPAD"; then
+      echo "Error to curl the wpad.dat from $WHOST, maybe web server config issue?"
+      exit 8
+    fi
+
+  fi
+  for u in https://bbc.co.uk https://zh.annas-archive.gs/ http://www.sina.cn; do
+    (
+      echo "Verify $u: "
+      pactester -p "$WPAD" -u $u
+    ) | xargs
+  done
 }
 
 # Main Prog.
 #
 test_pac
 # put username@hostname in your ~/.ssh/config file, so to mask the username in this script
-if scp -q "$WPAD" wpad:/var/www/html/wpad; then
-	echo "Successfully send new wpad.dat to wpad host"
-	test_pac remote
-	# Todo: reload remote Nginx
+if scp -q "$WPAD" $WHOST:/var/www/html/wpad; then
+  echo "Successfully send new wpad.dat to $WHOST"
+  test_pac remote
+  # Todo: reload remote Nginx
 else
-	echo "Error: Failed to send new wpad.dat to wpad host"
+  echo "Error: Failed to send new wpad.dat to wpad host"
 fi

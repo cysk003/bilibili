@@ -39,6 +39,12 @@
 
 .. toctree::
    :maxdepth: 2
+   :caption: IPFS:
+
+   IPFS
+
+.. toctree::
+   :maxdepth: 2
    :caption: Shell:
 
    bash-emacs
@@ -107,6 +113,7 @@
    hidden-service
    via-http
    内网透传
+   Kerberos/Linux 加域基础
 
    Todo
    ######

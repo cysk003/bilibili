@@ -5,7 +5,7 @@
 # License: MIT
 #
 [ -z "$1" ] && echo "Syntax: $0 mp3_file" && exit
-if ! command -v eyeD3 sacad syncedlyrics; then
+if ! command -v eyeD3 sacad syncedlyrics >/dev/null; then
   echo "Please [pip3 or apt] install eyeD3 or sacad or syncedlyrics"
   exit 1
 fi
@@ -17,11 +17,10 @@ do
   echo "Info: Found artist: $artist, album: $album"
   if [ -z "$(eyeD3 "$1" | grep ^FRONT_COVER)" ]; then
     img="/tmp/$album.jpg"
-    echo "Info: Searching and write image as: $img"
+    echo "Info: Searching and write temp image to $img"
     proxychains -q sacad -v quiet "$artist" "$album" 400 "$img"
-    [ -s "$img" ] && echo "Info:Add cover img to music"
+    [ -s "$img" ] && eyeD3 -Q --add-image "$img":FRONT_COVER "$1" && echo "Info:Added cover img to music"
     # echo "Error: failed to find image."
-    eyeD3 -Q --add-image "$img":FRONT_COVER "$1"
     rm "$img"
   else
     echo "Info: Front cover already there"
